@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <h1>{{ note.title }}</h1>
+    <p>{{ content }}</p>
+    <p><strong>Author:</strong> {{ note.author.username }}</p>
+    <p><strong>Date Posted:</strong> {{ note.date_posted.strftime('%Y-%m-%d') }}</p>
+    {% if shared_with_usernames %}
+        <p><strong>Shared with:</strong> {{ ", ".join(shared_with_usernames) }}</p>
+    {% endif %}
+    {% if note.author == current_user %}
+        <div class="btn-group" role="group">
+            <a class="btn btn-success btn-sm" href="{{ url_for('update_note', note_id=note.id) }}">Edit</a>
+            <form method="POST" action="{{ url_for('delete_note', note_id=note.id) }}">
+                <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+            </form>
+        </div>
+    {% endif %}
+</div>
+{% endblock content %}

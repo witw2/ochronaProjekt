@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <h1>{{ legend }}</h1>
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+            {{ form.title.label(class="form-control-label") }}
+            {% if form.title.errors %}
+                {{ form.title(class="form-control form-control-lg is-invalid") }}
+                <div class="invalid-feedback">
+                    {% for error in form.title.errors %}
+                        <span>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% else %}
+                {{ form.title(class="form-control form-control-lg") }}
+            {% endif %}
+        </div>
+        <div class="form-group">
+            {{ form.content.label(class="form-control-label") }}
+            {% if form.content.errors %}
+                {{ form.content(class="form-control form-control-lg is-invalid") }}
+                <div class="invalid-feedback">
+                    {% for error in form.content.errors %}
+                        <span>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% else %}
+                {{ form.content(class="form-control form-control-lg") }}
+            {% endif %}
+        </div>
+        <div class="form-group form-check">
+            {{ form.is_encrypted(class="form-check-input") }}
+            {{ form.is_encrypted.label(class="form-check-label") }}
+        </div>
+        {% if 'shared' in request.path %}
+            <div class="form-group">
+                {{ form.share_with.label(class="form-control-label") }}
+                {% if form.share_with.errors %}
+                    {{ form.share_with(class="form-control form-control-lg is-invalid") }}
+                    <div class="invalid-feedback">
+                        {% for error in form.share_with.errors %}
+                            <span>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    {{ form.share_with(class="form-control form-control-lg") }}
+                {% endif %}
+            </div>
+        {% endif %}
+        <div class="form-group">
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
+    </form>
+</div>
+{% endblock content %}

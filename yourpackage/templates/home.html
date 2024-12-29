@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <h1>Home Page</h1>
+    <ul class="nav nav-tabs">
+        {% if current_user.is_authenticated %}
+            <li class="nav-item">
+                <a class="nav-link {% if tab == 'private' %}active{% endif %}" href="{{ url_for('home', tab='private') }}">Private Notes</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if tab == 'public' %}active{% endif %}" href="{{ url_for('home', tab='public') }}">Public Notes</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if tab == 'shared' %}active{% endif %}" href="{{ url_for('home', tab='shared') }}">Shared Notes</a>
+            </li>
+        {% else %}
+            <li class="nav-item">
+                <a class="nav-link active" href="{{ url_for('home', tab='public') }}">Public Notes</a>
+            </li>
+        {% endif %}
+    </ul>
+    {% if current_user.is_authenticated %}
+        {% if tab == 'private' %}
+            <a class="btn btn-primary my-3" href="{{ url_for('new_note', note_type='private') }}">Create New Private Note</a>
+        {% elif tab == 'public' %}
+            <a class="btn btn-primary my-3" href="{{ url_for('new_note', note_type='public') }}">Create New Public Note</a>
+        {% elif tab == 'shared' %}
+            <a class="btn btn-primary my-3" href="{{ url_for('new_note', note_type='shared') }}">Create New Shared Note</a>
+        {% endif %}
+    {% endif %}
+    {% if tab == 'private' %}
+        <h2>Your Private Notes</h2>
+        {% for note in notes %}
+            <article class="media content-section">
+                <div class="media-body">
+                    <div class="article-metadata">
+                        <a class="mr-2" href="{{ url_for('note', note_id=note.id) }}">{{ note.title }}</a>
+                        <small class="text-muted">
+                            by {{ note.author.username }} on {{ note.date_posted.strftime('%Y-%m-%d') }}
+                        </small>
+                    </div>
+                    <p class="article-content">{{ note.content[:100] }}...</p>
+                </div>
+            </article>
+        {% endfor %}
+    {% elif tab == 'public' %}
+        <h2>Public Notes</h2>
+        {% for note in notes %}
+            <article class="media content-section">
+                <div class="media-body">
+                    <div class="article-metadata">
+                        <a class="mr-2" href="{{ url_for('note', note_id=note.id) }}">{{ note.title }}</a>
+                        <small class="text-muted">
+                            by {{ note.author.username }} on {{ note.date_posted.strftime('%Y-%m-%d') }}
+                        </small>
+                    </div>
+                    <p class="article-content">{{ note.content[:100] }}...</p>
+                </div>
+            </article>
+        {% endfor %}
+    {% elif tab == 'shared' %}
+        <h2>Notes Shared with You</h2>
+        {% for note in notes %}
+            <article class="media content-section">
+                <div class="media-body">
+                    <div class="article-metadata">
+                        <a class="mr-2" href="{{ url_for('note', note_id=note.id) }}">{{ note.title }}</a>
+                        <small class="text-muted">
+                            by {{ note.author.username }} on {{ note.date_posted.strftime('%Y-%m-%d') }}
+                        </small>
+                    </div>
+                    <p class="article-content">{{ note.content[:100] }}...</p>
+                </div>
+            </article>
+        {% endfor %}
+    {% endif %}
+</div>
+{% endblock content %}
