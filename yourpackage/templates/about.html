@@ -1,7 +1,15 @@
 {% extends "layout.html" %}
 {% block content %}
 <div class="content-section">
-    <h1>About Page</h1>
-    <p>This is the about page of My Flask App. Here you can find more information about the application.</p>
+    <h1>About</h1>
+    {% if user %}
+        <h2>Logged in as:</h2>
+        <ul>
+            <li>Username: {{ user.username }}</li>
+            <li>Email: {{ user.email }}</li>
+        </ul>
+    {% else %}
+        <p>You are not logged in.</p>
+    {% endif %}
 </div>
 {% endblock content %}

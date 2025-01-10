@@ -1,4 +1,3 @@
-#models.py
 from datetime import datetime
 from yourpackage import db, login_manager
 from flask_login import UserMixin
@@ -13,7 +12,11 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(120), unique=True, nullable=False)
     image_file = db.Column(db.String(20), nullable=False, default='default.jpg')
     password = db.Column(db.String(60), nullable=False)
-    notes = db.relationship('Note', backref='author', lazy=True)
+    totp_secret = db.Column(db.String(16), nullable=True)
+    notes = db.relationship('Note', backref='author', lazy=True)  # Relacja z modelem Note
+
+    def __repr__(self):
+        return f"User('{self.username}', '{self.email}', '{self.image_file}')"
 
 note_shares = db.Table('note_shares',
     db.Column('note_id', db.Integer, db.ForeignKey('note.id'), primary_key=True),
@@ -32,3 +35,15 @@ class Note(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     shared_with = db.relationship('User', secondary=note_shares, lazy='subquery',
         backref=db.backref('shared_notes', lazy=True))
+
+    def __repr__(self):
+        return f"Note('{self.title}', '{self.date_posted}')"
+
+    def clean_content(self):
+        allowed_tags = ['a', 'abbr', 'acronym', 'b', 'blockquote', 'code', 'em', 'i', 'li', 'ol', 'strong', 'ul', 'h1',
+                        'h2', 'h3', 'h4', 'h5', 'img']
+        allowed_attributes = {
+            'a': ['href', 'title'],
+            'img': ['src', 'alt']
+        }
+        self.content = bleach.clean(self.content, tags=allowed_tags, attributes=allowed_attributes)

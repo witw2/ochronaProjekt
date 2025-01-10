@@ -1,9 +1,26 @@
-from flask import render_template, url_for, flash, redirect, request, abort
+import base64
+import pyotp
+import qrcode
+import time
+from io import BytesIO
+from flask import render_template, url_for, flash, redirect, request, send_file, abort
 from flask_login import login_user, current_user, logout_user, login_required
 from yourpackage import app, db, bcrypt
 from yourpackage.forms import RegistrationForm, LoginForm, NoteForm
 from yourpackage.models import User, Note
 from yourpackage.utils import generate_key, encrypt_content, decrypt_content, sign_content
+import bleach
+
+# Dictionary to store login attempts
+login_attempts = {}
+
+def clean_content(content):
+    allowed_tags = ['a', 'abbr', 'acronym', 'b', 'blockquote', 'code', 'em', 'i', 'li', 'ol', 'strong', 'ul', 'h1', 'h2', 'h3', 'h4', 'h5', 'img','div']
+    allowed_attributes = {
+        'a': ['href', 'title'],
+        'img': ['src', 'alt']
+    }
+    return bleach.clean(content, tags=allowed_tags, attributes=allowed_attributes)
 
 @app.route("/")
 @app.route("/home")
@@ -26,21 +43,34 @@ def home():
 
 @app.route("/about")
 def about():
-    return render_template('about.html', title='About')
+    user = None
+    if current_user.is_authenticated:
+        user = current_user
+    return render_template('about.html', title='About', user=user)
 
 @app.route("/register", methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('home'))
     form = RegistrationForm()
+    qr_code_data = None
     if form.validate_on_submit():
         hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
         user = User(username=form.username.data, email=form.email.data, password=hashed_password)
+        user.totp_secret = pyotp.random_base32()  # Generate a random TOTP secret
         db.session.add(user)
         db.session.commit()
-        flash('Your account has been created! You are now able to log in', 'success')
-        return redirect(url_for('login'))
-    return render_template('register.html', title='Register', form=form)
+        flash('Your account has been created! Please scan the QR code with your TOTP app.', 'success')
+
+        # Generate TOTP QR code
+        totp_uri = pyotp.totp.TOTP(user.totp_secret).provisioning_uri(user.email, issuer_name="YourAppName")
+        img = qrcode.make(totp_uri)  # Generowanie kodu QR
+        stream = BytesIO()
+        img.save(stream, 'PNG')
+        stream.seek(0)
+        qr_code_data = base64.b64encode(stream.getvalue()).decode('utf-8')
+
+    return render_template('register.html', title='Register', form=form, qr_code_data=qr_code_data)
 
 @app.route("/login", methods=['GET', 'POST'])
 def login():
@@ -49,12 +79,30 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
-        if user and bcrypt.check_password_hash(user.password, form.password.data):
-            login_user(user, remember=form.remember.data)
-            next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for('home'))
+        email = form.email.data
+        if email not in login_attempts:
+            login_attempts[email] = {'attempts': 0, 'last_attempt_time': time.time()}
+        attempts = login_attempts[email]['attempts']
+        last_attempt_time = login_attempts[email]['last_attempt_time']
+
+        if attempts >= 5 and time.time() - last_attempt_time < 300:
+            remaining_time = int(300 - (time.time() - last_attempt_time))
+            form.email.errors.append('Too many login attempts. Please try again in ' + str(remaining_time) + ' seconds.')
+        elif user and bcrypt.check_password_hash(user.password, form.password.data):
+            totp = pyotp.TOTP(user.totp_secret)
+            if totp.verify(form.totp.data):
+                login_attempts[email] = {'attempts': 0, 'last_attempt_time': time.time()}
+                login_user(user, remember=form.remember.data)
+                next_page = request.args.get('next')
+                return redirect(next_page) if next_page else redirect(url_for('home'))
+            else:
+                time.sleep(0.5)
+                form.totp.errors.append('Invalid TOTP. Please try again.')
         else:
-            flash('Login Unsuccessful. Please check email and password', 'danger')
+            time.sleep(0.5)
+            form.email.errors.append('Login Unsuccessful. Please check email and password')
+            login_attempts[email]['attempts'] += 1
+            login_attempts[email]['last_attempt_time'] = time.time()
     return render_template('login.html', title='Login', form=form)
 
 @app.route("/logout")
@@ -62,21 +110,22 @@ def logout():
     logout_user()
     return redirect(url_for('home'))
 
-
 @app.route("/note/new/<string:note_type>", methods=['GET', 'POST'])
 @login_required
 def new_note(note_type):
     form = NoteForm()
     if form.validate_on_submit():
+        cleaned_content = clean_content(form.content.data)
+        is_public = (note_type == 'public')
         if form.is_encrypted.data:
             key = generate_key()
-            encrypted_content = encrypt_content(form.content.data, key)
+            encrypted_content = encrypt_content(cleaned_content, key)
             note = Note(title=form.title.data, content=encrypted_content, author=current_user, is_encrypted=True,
-                        encryption_key=key.decode(), is_public=(note_type == 'public'),
+                        encryption_key=key.decode(), is_public=is_public,
                         signature=sign_content(encrypted_content, current_user))
         else:
-            note = Note(title=form.title.data, content=form.content.data, author=current_user, is_encrypted=False,
-                        is_public=(note_type == 'public'), signature=sign_content(form.content.data, current_user))
+            note = Note(title=form.title.data, content=cleaned_content, author=current_user, is_encrypted=False,
+                        is_public=is_public, signature=sign_content(cleaned_content, current_user))
 
         if note_type == 'shared':
             usernames = [username.strip() for username in form.share_with.data.split(',')]
@@ -94,7 +143,6 @@ def new_note(note_type):
         return redirect(url_for('home', tab=note_type))
     return render_template('create_note.html', title='New Note', form=form, legend='New Note')
 
-
 @app.route("/note/<int:note_id>/update", methods=['GET', 'POST'])
 @login_required
 def update_note(note_id):
@@ -103,9 +151,10 @@ def update_note(note_id):
         abort(403)
     form = NoteForm()
     if form.validate_on_submit():
+        cleaned_content = clean_content(form.content.data)
         if form.is_encrypted.data:
             key = generate_key()
-            encrypted_content = encrypt_content(form.content.data, key)
+            encrypted_content = encrypt_content(cleaned_content, key)
             note.title = form.title.data
             note.content = encrypted_content
             note.is_encrypted = True
@@ -113,10 +162,10 @@ def update_note(note_id):
             note.signature = sign_content(encrypted_content, current_user)
         else:
             note.title = form.title.data
-            note.content = form.content.data
+            note.content = cleaned_content
             note.is_encrypted = False
             note.encryption_key = None
-            note.signature = sign_content(form.content.data, current_user)
+            note.signature = sign_content(cleaned_content, current_user)
 
         if note.is_public:
             note.shared_with = []  # Clear shared users for public notes
@@ -134,11 +183,10 @@ def update_note(note_id):
         return redirect(url_for('note', note_id=note.id))
     elif request.method == 'GET':
         form.title.data = note.title
-        form.content.data = note.content if not note.is_encrypted else decrypt_content(note.content,
-                                                                                       note.encryption_key.encode())
+        form.content.data = note.content if not note.is_encrypted else decrypt_content(note.content, note.encryption_key.encode())
         form.is_encrypted.data = note.is_encrypted
-        if 'shared' in request.path and note.shared_with:
-            form.share_with.data = note.shared_with[0].username  # Show the first shared user's username
+        if note.shared_with:
+            form.share_with.data = ', '.join([user.username for user in note.shared_with])
 
     return render_template('create_note.html', title='Update Note', form=form, legend='Update Note')
 

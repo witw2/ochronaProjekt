@@ -1,57 +1,86 @@
 {% extends "layout.html" %}
 {% block content %}
 <div class="content-section">
-    <h1>{{ legend }}</h1>
     <form method="POST" action="">
         {{ form.hidden_tag() }}
-        <div class="form-group">
-            {{ form.title.label(class="form-control-label") }}
-            {% if form.title.errors %}
-                {{ form.title(class="form-control form-control-lg is-invalid") }}
-                <div class="invalid-feedback">
-                    {% for error in form.title.errors %}
-                        <span>{{ error }}</span>
-                    {% endfor %}
+        <fieldset class="form-group">
+            <legend class="border-bottom mb-4">{{ legend }}</legend>
+            <div class="form-group">
+                {{ form.title.label(class="form-control-label") }}
+                {{ form.title(class="form-control form-control-lg" + (" is-invalid" if form.title.errors else "")) }}
+                {% for error in form.title.errors %}
+                    <div class="invalid-feedback">
+                        {{ error }}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="form-group">
+                <label for="editor" class="form-control-label">Content</label>
+                <div class="mb-2">
+                    <button type="button" onclick="execCmd('bold')">Bold</button>
+                    <button type="button" onclick="execCmd('italic')">Italic</button>
+                    <button type="button" onclick="execCmd('createLink', prompt('Enter the URL', 'http://'))">Link</button>
+                    <button type="button" onclick="execCmd('insertImage', prompt('Enter the image URL', 'http://'))">Image</button>
+                    <button type="button" onclick="execCmd('formatBlock', '<h1>')">H1</button>
+                    <button type="button" onclick="execCmd('formatBlock', '<h2>')">H2</button>
+                    <button type="button" onclick="execCmd('formatBlock', '<h3>')">H3</button>
+                    <button type="button" onclick="execCmd('formatBlock', '<h4>')">H4</button>
+                    <button type="button" onclick="execCmd('formatBlock', '<h5>')">H5</button>
                 </div>
-            {% else %}
-                {{ form.title(class="form-control form-control-lg") }}
-            {% endif %}
-        </div>
-        <div class="form-group">
-            {{ form.content.label(class="form-control-label") }}
-            {% if form.content.errors %}
-                {{ form.content(class="form-control form-control-lg is-invalid") }}
-                <div class="invalid-feedback">
-                    {% for error in form.content.errors %}
-                        <span>{{ error }}</span>
-                    {% endfor %}
-                </div>
-            {% else %}
-                {{ form.content(class="form-control form-control-lg") }}
-            {% endif %}
-        </div>
-        <div class="form-group form-check">
-            {{ form.is_encrypted(class="form-check-input") }}
-            {{ form.is_encrypted.label(class="form-check-label") }}
-        </div>
-        {% if 'shared' in request.path %}
+                <div id="editor" class="form-control" contenteditable="true" style="height: 300px; border: 1px solid #ced4da; border-radius: .25rem; padding: .375rem .75rem;">{{ form.content.data|safe }}</div>
+                <textarea id="content" name="content" hidden>{{ form.content.data }}</textarea>
+                {% for error in form.content.errors %}
+                    <div class="invalid-feedback">
+                        {{ error }}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="form-group form-check">
+                {{ form.is_encrypted(class="form-check-input" + (" is-invalid" if form.is_encrypted.errors else "")) }}
+                {{ form.is_encrypted.label(class="form-check-label") }}
+                {% for error in form.is_encrypted.errors %}
+                    <div class="invalid-feedback">
+                        {{ error }}
+                    </div>
+                {% endfor %}
+            </div>
+            {% if 'shared' in request.path %}
             <div class="form-group">
                 {{ form.share_with.label(class="form-control-label") }}
-                {% if form.share_with.errors %}
-                    {{ form.share_with(class="form-control form-control-lg is-invalid") }}
+                {{ form.share_with(class="form-control form-control-lg" + (" is-invalid" if form.share_with.errors else "")) }}
+                {% for error in form.share_with.errors %}
                     <div class="invalid-feedback">
-                        {% for error in form.share_with.errors %}
-                            <span>{{ error }}</span>
-                        {% endfor %}
+                        {{ error }}
                     </div>
-                {% else %}
-                    {{ form.share_with(class="form-control form-control-lg") }}
-                {% endif %}
+                {% endfor %}
             </div>
-        {% endif %}
+            {% endif %}
+        </fieldset>
         <div class="form-group">
-            {{ form.submit(class="btn btn-primary") }}
+            {{ form.submit(class="btn btn-outline-info") }}
         </div>
     </form>
 </div>
+
+{% block scripts %}
+<script>
+    function execCmd(command, value = null) {
+        document.execCommand(command, false, value);
+        document.getElementById('editor').focus();
+    }
+
+    // Function to sync editor content with hidden textarea
+    document.querySelector('form').addEventListener('submit', function() {
+        document.querySelector('#content').value = document.querySelector('#editor').innerHTML;
+    });
+
+    // Initialize editor with form content if it's not empty
+    document.addEventListener('DOMContentLoaded', function() {
+        const editor = document.getElementById('editor');
+        if (editor.innerHTML.trim() === 'None' || editor.innerHTML.trim() === '') {
+            editor.innerHTML = '';
+        }
+    });
+</script>
+{% endblock scripts %}
 {% endblock content %}

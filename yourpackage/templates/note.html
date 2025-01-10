@@ -2,7 +2,9 @@
 {% block content %}
 <div class="content-section">
     <h1>{{ note.title }}</h1>
-    <p>{{ content }}</p>
+    <div class="note-content">
+        {{ content|safe }} <!-- Użycie filtra 'safe', aby wyświetlić sformatowany HTML -->
+    </div>
     <p><strong>Author:</strong> {{ note.author.username }}</p>
     <p><strong>Date Posted:</strong> {{ note.date_posted.strftime('%Y-%m-%d') }}</p>
     {% if shared_with_usernames %}
