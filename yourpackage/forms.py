@@ -4,7 +4,7 @@ from wtforms.validators import DataRequired, Regexp, Length, Email, EqualTo, Val
 from yourpackage.models import User
 
 class RegistrationForm(FlaskForm):
-    '''
+
     username = StringField('Username',
         validators=[
             DataRequired(message='Username is required'),
@@ -36,6 +36,7 @@ class RegistrationForm(FlaskForm):
     password = PasswordField('Password')
     confirm_password = PasswordField('Confirm Password')
     submit = SubmitField('Sign Up')
+    '''
     def validate_username(self, username):
         user = User.query.filter_by(username=username.data).first()
         if user:

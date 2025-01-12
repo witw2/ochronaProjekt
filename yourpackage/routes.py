@@ -15,7 +15,7 @@ import bleach
 login_attempts = {}
 
 def clean_content(content):
-    allowed_tags = ['a', 'abbr', 'acronym', 'b', 'blockquote', 'code', 'em', 'i', 'li', 'ol', 'strong', 'ul', 'h1', 'h2', 'h3', 'h4', 'h5', 'img','div']
+    allowed_tags = ['a', 'abbr', 'acronym', 'b', 'blockquote', 'code', 'em', 'i', 'li', 'ol', 'strong', 'ul', 'h1', 'h2', 'h3', 'h4', 'h5', 'img','div','br']
     allowed_attributes = {
         'a': ['href', 'title'],
         'img': ['src', 'alt']
