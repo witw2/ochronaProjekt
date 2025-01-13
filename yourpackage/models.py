@@ -1,4 +1,7 @@
 from datetime import datetime
+
+import bleach
+
 from yourpackage import db, login_manager
 from flask_login import UserMixin
 

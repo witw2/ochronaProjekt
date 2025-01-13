@@ -65,8 +65,19 @@ class LoginForm(FlaskForm):
     submit = SubmitField('Login')
 
 class NoteForm(FlaskForm):
-    title = StringField('Title', validators=[DataRequired()])
+    title = StringField('Title', validators=[DataRequired(), Length(min=2, max=100)])
     content = TextAreaField('Content', validators=[DataRequired()])
     is_encrypted = BooleanField('Encrypt Note')
-    share_with = StringField('Share with (Username)', validators=[])
-    submit = SubmitField('Save Note')
+    password = PasswordField('Encryption Password')
+    share_with = StringField('Share with (comma separated usernames)')
+    submit = SubmitField('Post')
+
+
+from flask_wtf import FlaskForm
+from wtforms import PasswordField, StringField, SubmitField
+
+class DecryptNoteForm(FlaskForm):
+    password = PasswordField('Encryption Password')
+    totp = StringField('TOTP Code')
+    submit = SubmitField('Decrypt Note')
+    delete_submit = SubmitField('Delete Note')

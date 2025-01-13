@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <form method="POST" action="{{ url_for('decrypt_note', note_id=note_id) }}">
+        {{ form.hidden_tag() }}
+        <fieldset class="form-group">
+            <legend class="border-bottom mb-4">Decrypt Note</legend>
+            <div class="form-group">
+                <label for="password" class="form-control-label">Encryption Password</label>
+                {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
+                {% for error in form.password.errors %}
+                    <div class="invalid-feedback">
+                        {{ error }}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="form-group">
+                {{ form.submit(class="btn btn-outline-info") }}
+            </div>
+        </fieldset>
+    </form>
+    {% if note.is_encrypted %}
+    <hr>
+    <form method="POST" action="{{ url_for('decrypt_note', note_id=note.id) }}">
+        {{ form.hidden_tag() }}
+        <fieldset class="form-group">
+            <legend class="border-bottom mb-4">Delete Note</legend>
+            <div class="form-group">
+                <label for="totp" class="form-control-label">TOTP Code</label>
+                {{ form.totp(class="form-control" + (" is-invalid" if form.totp.errors else "")) }}
+                {% for error in form.totp.errors %}
+                    <div class="invalid-feedback">
+                        {{ error }}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="form-group">
+                {{ form.delete_submit(class="btn btn-outline-danger") }}
+            </div>
+        </fieldset>
+    </form>
+    {% endif %}
+</div>
+{% endblock content %}

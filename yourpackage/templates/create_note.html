@@ -27,7 +27,9 @@
                     <button type="button" onclick="execCmd('formatBlock', '<h4>')">H4</button>
                     <button type="button" onclick="execCmd('formatBlock', '<h5>')">H5</button>
                 </div>
-                <div id="editor" class="form-control" contenteditable="true" style="height: 300px; border: 1px solid #ced4da; border-radius: .25rem; padding: .375rem .75rem;">{{ form.content.data|safe }}</div>
+                <div id="editor" class="form-control" contenteditable="true" style="height: 300px; border: 1px solid #ced4da; border-radius: .25rem; padding: .375rem .75rem; overflow: auto; word-wrap: break-word;">
+                    {{ form.content.data|safe }}
+                </div>
                 <textarea id="content" name="content" hidden>{{ form.content.data }}</textarea>
                 {% for error in form.content.errors %}
                     <div class="invalid-feedback">
@@ -35,7 +37,7 @@
                     </div>
                 {% endfor %}
             </div>
-            <div class="form-group form-check">
+            <div class="form-group form-check-inline">
                 {{ form.is_encrypted(class="form-check-input" + (" is-invalid" if form.is_encrypted.errors else "")) }}
                 {{ form.is_encrypted.label(class="form-check-label") }}
                 {% for error in form.is_encrypted.errors %}
@@ -43,6 +45,15 @@
                         {{ error }}
                     </div>
                 {% endfor %}
+                <div class="form-group ml-3">
+                    <label for="password" class="form-control-label">Encryption Password</label>
+                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
+                    {% for error in form.password.errors %}
+                        <div class="invalid-feedback">
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+                </div>
             </div>
             {% if 'shared' in request.path %}
             <div class="form-group">
@@ -74,7 +85,6 @@
         document.querySelector('#content').value = document.querySelector('#editor').innerHTML;
     });
 
-    // Initialize editor with form content if it's not empty
     document.addEventListener('DOMContentLoaded', function() {
         const editor = document.getElementById('editor');
         if (editor.innerHTML.trim() === 'None' || editor.innerHTML.trim() === '') {

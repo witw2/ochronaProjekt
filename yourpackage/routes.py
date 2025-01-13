@@ -1,15 +1,16 @@
-import base64
-import pyotp
-import qrcode
-import time
-from io import BytesIO
 from flask import render_template, url_for, flash, redirect, request, send_file, abort
 from flask_login import login_user, current_user, logout_user, login_required
 from yourpackage import app, db, bcrypt
-from yourpackage.forms import RegistrationForm, LoginForm, NoteForm
+from yourpackage.forms import RegistrationForm, LoginForm, NoteForm, DecryptNoteForm
 from yourpackage.models import User, Note
-from yourpackage.utils import generate_key, encrypt_content, decrypt_content, sign_content
+from yourpackage.utils import generate_key, encrypt_content_with_password, decrypt_content_with_password, sign_content, \
+    verify_totp
+import time
+import pyotp
 import bleach
+import base64
+import qrcode
+from io import BytesIO
 
 # Dictionary to store login attempts
 login_attempts = {}
@@ -21,6 +22,11 @@ def clean_content(content):
         'img': ['src', 'alt']
     }
     return bleach.clean(content, tags=allowed_tags, attributes=allowed_attributes)
+
+from flask_wtf import FlaskForm
+from wtforms import HiddenField
+class EmptyForm(FlaskForm):
+    hidden = HiddenField()
 
 @app.route("/")
 @app.route("/home")
@@ -118,11 +124,10 @@ def new_note(note_type):
         cleaned_content = clean_content(form.content.data)
         is_public = (note_type == 'public')
         if form.is_encrypted.data:
-            key = generate_key()
-            encrypted_content = encrypt_content(cleaned_content, key)
+            password = form.password.data
+            encrypted_content = encrypt_content_with_password(cleaned_content, password)
             note = Note(title=form.title.data, content=encrypted_content, author=current_user, is_encrypted=True,
-                        encryption_key=key.decode(), is_public=is_public,
-                        signature=sign_content(encrypted_content, current_user))
+                        is_public=is_public, signature=sign_content(encrypted_content, current_user))
         else:
             note = Note(title=form.title.data, content=cleaned_content, author=current_user, is_encrypted=False,
                         is_public=is_public, signature=sign_content(cleaned_content, current_user))
@@ -143,32 +148,36 @@ def new_note(note_type):
         return redirect(url_for('home', tab=note_type))
     return render_template('create_note.html', title='New Note', form=form, legend='New Note')
 
+
 @app.route("/note/<int:note_id>/update", methods=['GET', 'POST'])
 @login_required
 def update_note(note_id):
     note = Note.query.get_or_404(note_id)
     if note.author != current_user:
         abort(403)
+
+    if note.is_encrypted:  # Sprawdzenie, czy notatka jest zaszyfrowana
+        flash('Encrypted notes cannot be edited.', 'warning')
+        return redirect(url_for('note', note_id=note_id))
+
     form = NoteForm()
     if form.validate_on_submit():
         cleaned_content = clean_content(form.content.data)
         if form.is_encrypted.data:
-            key = generate_key()
-            encrypted_content = encrypt_content(cleaned_content, key)
+            password = form.password.data
+            encrypted_content = encrypt_content_with_password(cleaned_content, password)
             note.title = form.title.data
             note.content = encrypted_content
             note.is_encrypted = True
-            note.encryption_key = key.decode()
             note.signature = sign_content(encrypted_content, current_user)
         else:
             note.title = form.title.data
             note.content = cleaned_content
             note.is_encrypted = False
-            note.encryption_key = None
             note.signature = sign_content(cleaned_content, current_user)
 
         if note.is_public:
-            note.shared_with = []  # Clear shared users for public notes
+            note.shared_with = []
         elif 'shared' in request.path:
             share_with_username = form.share_with.data
             user_to_share = User.query.filter_by(username=share_with_username).first()
@@ -183,25 +192,63 @@ def update_note(note_id):
         return redirect(url_for('note', note_id=note.id))
     elif request.method == 'GET':
         form.title.data = note.title
-        form.content.data = note.content if not note.is_encrypted else decrypt_content(note.content, note.encryption_key.encode())
+        if note.is_encrypted:
+            flash('Please enter the password to decrypt the note.', 'info')
+            return redirect(url_for('decrypt_note', note_id=note.id))
+        else:
+            form.content.data = note.content
         form.is_encrypted.data = note.is_encrypted
         if note.shared_with:
             form.share_with.data = ', '.join([user.username for user in note.shared_with])
 
     return render_template('create_note.html', title='Update Note', form=form, legend='Update Note')
 
+
+@app.route("/note/<int:note_id>/decrypt", methods=['GET', 'POST'])
+@login_required
+def decrypt_note(note_id):
+    note = Note.query.get_or_404(note_id)
+    form = DecryptNoteForm()
+    shared_with_usernames = [user.username for user in note.shared_with]
+
+    if form.validate_on_submit():
+        if form.submit.data:  # Odszyfrowanie notatki
+            password = form.password.data
+            try:
+                decrypted_content = decrypt_content_with_password(note.content, password)
+                flash('Note has been decrypted.', 'success')
+                return render_template('decrypted_note.html', title=note.title, note=note, content=decrypted_content, shared_with_usernames=shared_with_usernames, form=form)
+            except ValueError:
+                flash('Incorrect password. Please try again.', 'danger')
+        elif form.delete_submit.data:  # Usunięcie notatki
+            if note.author != current_user:
+                flash('You do not have permission to delete this note.', 'danger')
+            else:
+                totp_code = form.totp.data
+                if verify_totp(current_user, totp_code):
+                    db.session.delete(note)
+                    db.session.commit()
+                    flash('Note has been deleted.', 'success')
+                    return redirect(url_for('home'))
+                else:
+                    flash('Invalid TOTP code. Please try again.', 'danger')
+
+    return render_template('decrypt_note.html', form=form, note=note, note_id=note_id)
+
+
 @app.route("/note/<int:note_id>")
 @login_required
 def note(note_id):
     note = Note.query.get_or_404(note_id)
+    form = EmptyForm()
+    shared_with_usernames = [user.username for user in note.shared_with]
     if note.author != current_user and current_user not in note.shared_with and not note.is_public:
         abort(403)
     if note.is_encrypted:
-        content = decrypt_content(note.content, note.encryption_key.encode())
-    else:
-        content = note.content
-    shared_with_usernames = [user.username for user in note.shared_with]
-    return render_template('note.html', title=note.title, note=note, content=content, shared_with_usernames=shared_with_usernames)
+        flash('Please enter the password to decrypt the note.', 'info')
+        return redirect(url_for('decrypt_note', note_id=note.id))
+    content = note.content
+    return render_template('note.html', title=note.title, note=note, content=content,shared_with_usernames=shared_with_usernames, form=form)
 
 @app.route("/note/<int:note_id>/delete", methods=['POST'])
 @login_required
