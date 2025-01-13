@@ -8,6 +8,30 @@
             <li>Username: {{ user.username }}</li>
             <li>Email: {{ user.email }}</li>
         </ul>
+        <form method="POST" action="{{ url_for('delete_all_notes') }}">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <label for="totp">TOTP Code</label>
+                <input type="text" class="form-control" id="totp" name="totp" required>
+            </div>
+            <button class="btn btn-warning" type="submit">Delete All My Notes</button>
+        </form>
+        <form method="POST" action="{{ url_for('delete_account') }}">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <label for="totp">TOTP Code</label>
+                <input type="text" class="form-control" id="totp" name="totp" required>
+            </div>
+            <button class="btn btn-danger" type="submit">Delete My Account</button>
+        </form>
     {% else %}
         <p>You are not logged in.</p>
     {% endif %}

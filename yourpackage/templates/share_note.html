@@ -3,6 +3,7 @@
 <div class="content-section">
     <h1>Share Note</h1>
     <form method="POST">
+        {{ form.hidden_tag() }}
         <div class="form-group">
             <label for="username">Username to share with:</label>
             <input type="text" class="form-control" id="username" name="username">

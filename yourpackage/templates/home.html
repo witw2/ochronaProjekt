@@ -39,7 +39,6 @@
                             by {{ note.author.username }} on {{ note.date_posted.strftime('%Y-%m-%d') }}
                         </small>
                     </div>
-                    <p class="article-content">{{ note.content[:100]|safe }}...</p>
                 </div>
             </article>
         {% endfor %}
@@ -54,7 +53,6 @@
                             by {{ note.author.username }} on {{ note.date_posted.strftime('%Y-%m-%d') }}
                         </small>
                     </div>
-                    <p class="article-content">{{ note.content[:100]|safe }}...</p>
                 </div>
             </article>
         {% endfor %}
@@ -69,7 +67,6 @@
                             by {{ note.author.username }} on {{ note.date_posted.strftime('%Y-%m-%d') }}
                         </small>
                     </div>
-                    <p class="article-content">{{ note.content[:100]|safe }}...</p>
                 </div>
             </article>
         {% endfor %}

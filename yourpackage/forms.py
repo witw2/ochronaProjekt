@@ -1,5 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import PasswordField, StringField, TextAreaField, SubmitField, BooleanField
+from wtforms.fields.simple import HiddenField
 from wtforms.validators import DataRequired, Regexp, Length, Email, EqualTo, ValidationError
 from yourpackage.models import User
 
@@ -30,13 +31,6 @@ class RegistrationForm(FlaskForm):
             EqualTo('password', message='Passwords must match')
         ])
     submit = SubmitField('Sign Up')
-    '''
-    username = StringField('Username')
-    email = StringField('Email')
-    password = PasswordField('Password')
-    confirm_password = PasswordField('Confirm Password')
-    submit = SubmitField('Sign Up')
-    '''
     def validate_username(self, username):
         user = User.query.filter_by(username=username.data).first()
         if user:
@@ -66,7 +60,7 @@ class LoginForm(FlaskForm):
 
 class NoteForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired(), Length(min=2, max=100)])
-    content = TextAreaField('Content', validators=[DataRequired()])
+    content = TextAreaField('Content')
     is_encrypted = BooleanField('Encrypt Note')
     password = PasswordField('Encryption Password')
     share_with = StringField('Share with (comma separated usernames)')
@@ -81,3 +75,6 @@ class DecryptNoteForm(FlaskForm):
     totp = StringField('TOTP Code')
     submit = SubmitField('Decrypt Note')
     delete_submit = SubmitField('Delete Note')
+
+class EmptyForm(FlaskForm):
+    hidden = HiddenField()

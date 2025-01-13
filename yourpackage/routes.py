@@ -1,10 +1,9 @@
 from flask import render_template, url_for, flash, redirect, request, send_file, abort
 from flask_login import login_user, current_user, logout_user, login_required
 from yourpackage import app, db, bcrypt
-from yourpackage.forms import RegistrationForm, LoginForm, NoteForm, DecryptNoteForm
-from yourpackage.models import User, Note
-from yourpackage.utils import generate_key, encrypt_content_with_password, decrypt_content_with_password, sign_content, \
-    verify_totp
+from yourpackage.forms import RegistrationForm, LoginForm, NoteForm, DecryptNoteForm, EmptyForm
+from yourpackage.models import User, Note, note_shares
+from yourpackage.utils import encrypt_content_with_password, decrypt_content_with_password, sign_content, verify_totp, simple_encrypt, simple_decrypt
 import time
 import pyotp
 import bleach
@@ -22,11 +21,6 @@ def clean_content(content):
         'img': ['src', 'alt']
     }
     return bleach.clean(content, tags=allowed_tags, attributes=allowed_attributes)
-
-from flask_wtf import FlaskForm
-from wtforms import HiddenField
-class EmptyForm(FlaskForm):
-    hidden = HiddenField()
 
 @app.route("/")
 @app.route("/home")
@@ -47,12 +41,12 @@ def home():
             notes = []
     return render_template('home.html', notes=notes, tab=tab)
 
-@app.route("/about")
+@app.route("/about", methods=['GET', 'POST'])
+@login_required
 def about():
-    user = None
-    if current_user.is_authenticated:
-        user = current_user
-    return render_template('about.html', title='About', user=user)
+    user = current_user
+    form = EmptyForm()
+    return render_template('about.html', title='About', user=user, form=form)
 
 @app.route("/register", methods=['GET', 'POST'])
 def register():
@@ -126,11 +120,12 @@ def new_note(note_type):
         if form.is_encrypted.data:
             password = form.password.data
             encrypted_content = encrypt_content_with_password(cleaned_content, password)
-            note = Note(title=form.title.data, content=encrypted_content, author=current_user, is_encrypted=True,
-                        is_public=is_public, signature=sign_content(encrypted_content, current_user))
         else:
-            note = Note(title=form.title.data, content=cleaned_content, author=current_user, is_encrypted=False,
-                        is_public=is_public, signature=sign_content(cleaned_content, current_user))
+            encrypted_content = simple_encrypt(cleaned_content)  # Szyfrowanie wszystkich notatek
+
+        note = Note(title=form.title.data, content=encrypted_content, author=current_user,
+                    is_encrypted=form.is_encrypted.data, is_public=is_public,
+                    signature=sign_content(encrypted_content, current_user))
 
         if note_type == 'shared':
             usernames = [username.strip() for username in form.share_with.data.split(',')]
@@ -166,15 +161,13 @@ def update_note(note_id):
         if form.is_encrypted.data:
             password = form.password.data
             encrypted_content = encrypt_content_with_password(cleaned_content, password)
-            note.title = form.title.data
-            note.content = encrypted_content
-            note.is_encrypted = True
-            note.signature = sign_content(encrypted_content, current_user)
         else:
-            note.title = form.title.data
-            note.content = cleaned_content
-            note.is_encrypted = False
-            note.signature = sign_content(cleaned_content, current_user)
+            encrypted_content = simple_encrypt(cleaned_content)  # Szyfrowanie wszystkich notatek
+
+        note.title = form.title.data
+        note.content = encrypted_content
+        note.is_encrypted = form.is_encrypted.data
+        note.signature = sign_content(encrypted_content, current_user)
 
         if note.is_public:
             note.shared_with = []
@@ -196,7 +189,7 @@ def update_note(note_id):
             flash('Please enter the password to decrypt the note.', 'info')
             return redirect(url_for('decrypt_note', note_id=note.id))
         else:
-            form.content.data = note.content
+            form.content.data = simple_decrypt(note.content)  # Odszyfrowanie przed wypełnieniem formularza
         form.is_encrypted.data = note.is_encrypted
         if note.shared_with:
             form.share_with.data = ', '.join([user.username for user in note.shared_with])
@@ -226,6 +219,8 @@ def decrypt_note(note_id):
             else:
                 totp_code = form.totp.data
                 if verify_totp(current_user, totp_code):
+                    # Usuń rekordy z tabeli note_shares
+                    db.session.execute(note_shares.delete().where(note_shares.c.note_id == note_id))
                     db.session.delete(note)
                     db.session.commit()
                     flash('Note has been deleted.', 'success')
@@ -247,8 +242,9 @@ def note(note_id):
     if note.is_encrypted:
         flash('Please enter the password to decrypt the note.', 'info')
         return redirect(url_for('decrypt_note', note_id=note.id))
-    content = note.content
-    return render_template('note.html', title=note.title, note=note, content=content,shared_with_usernames=shared_with_usernames, form=form)
+    content = simple_decrypt(note.content)  # Odszyfrowanie przed wyświetleniem
+    return render_template('note.html', title=note.title, note=note, content=content, shared_with_usernames=shared_with_usernames, form=form)
+
 
 @app.route("/note/<int:note_id>/delete", methods=['POST'])
 @login_required
@@ -256,9 +252,19 @@ def delete_note(note_id):
     note = Note.query.get_or_404(note_id)
     if note.author != current_user:
         abort(403)
-    db.session.delete(note)
-    db.session.commit()
-    flash('Your note has been deleted!', 'success')
+
+    try:
+        # Usuń rekordy z tabeli note_shares
+        db.session.execute(note_shares.delete().where(note_shares.c.note_id == note.id))
+        db.session.commit()
+        db.session.delete(note)
+        db.session.commit()
+        flash('Your note has been deleted!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('An error occurred while deleting the note. Please try again.', 'danger')
+        print(f"Error: {e}")
+
     return redirect(url_for('home'))
 
 @app.route("/note/<int:note_id>/share", methods=['GET', 'POST'])
@@ -286,3 +292,39 @@ def forbidden(error):
 @app.errorhandler(404)
 def page_not_found(error):
     return render_template('404.html'), 404
+
+@app.route("/delete_all_notes", methods=['POST'])
+@login_required
+def delete_all_notes():
+    password = request.form['password']
+    totp_code = request.form['totp']
+    if bcrypt.check_password_hash(current_user.password, password) and verify_totp(current_user, totp_code):
+        # Usuń rekordy z tabeli note_shares
+        notes = Note.query.filter_by(author=current_user).all()
+        for note in notes:
+            db.session.execute(note_shares.delete().where(note_shares.c.note_id == note.id))
+        Note.query.filter_by(author=current_user).delete()
+        db.session.commit()
+        flash('All your notes have been deleted!', 'success')
+    else:
+        flash('Invalid password or TOTP code. Please try again.', 'danger')
+    return redirect(url_for('about'))
+
+@app.route("/delete_account", methods=['POST'])
+@login_required
+def delete_account():
+    password = request.form['password']
+    totp_code = request.form['totp']
+    if bcrypt.check_password_hash(current_user.password, password) and verify_totp(current_user, totp_code):
+        # Usuń rekordy z tabeli note_shares
+        notes = Note.query.filter_by(author=current_user).all()
+        for note in notes:
+            db.session.execute(note_shares.delete().where(note_shares.c.note_id == note.id))
+        Note.query.filter_by(author=current_user).delete()
+        db.session.delete(current_user)
+        db.session.commit()
+        flash('Your account has been deleted!', 'success')
+        return redirect(url_for('home'))
+    else:
+        flash('Invalid password or TOTP code. Please try again.', 'danger')
+    return redirect(url_for('about'))

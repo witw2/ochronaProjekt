@@ -13,7 +13,6 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    image_file = db.Column(db.String(20), nullable=False, default='default.jpg')
     password = db.Column(db.String(60), nullable=False)
     totp_secret = db.Column(db.String(16), nullable=True)
     notes = db.relationship('Note', backref='author', lazy=True)  # Relacja z modelem Note
@@ -32,9 +31,8 @@ class Note(db.Model):
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     is_encrypted = db.Column(db.Boolean, default=False)
-    encryption_key = db.Column(db.String(44), nullable=True)
     is_public = db.Column(db.Boolean, default=False)
-    signature = db.Column(db.String(256), nullable=False)  # Dodane pole na podpis
+    signature = db.Column(db.String(256), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     shared_with = db.relationship('User', secondary=note_shares, lazy='subquery',
         backref=db.backref('shared_notes', lazy=True))

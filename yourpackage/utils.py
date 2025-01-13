@@ -5,25 +5,10 @@ from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
 import base64
-
-# Generate a key for encryption
-def generate_key():
-    return Fernet.generate_key()
-
-# Encrypt the content
-def encrypt_content(content, key):
-    f = Fernet(key)
-    return f.encrypt(content.encode()).decode()
-
-# Decrypt the content
-def decrypt_content(content, key):
-    f = Fernet(key)
-    return f.decrypt(content.encode()).decode()
-
+from cryptography.fernet import Fernet
 import hashlib
 
 def sign_content(content, user):
-    # Używamy funkcji hashującej do podpisania treści
     return hashlib.sha256(f'{content}{user.username}'.encode()).hexdigest()
 
 
@@ -45,3 +30,11 @@ def decrypt_content_with_password(encrypted_content, password):
 def verify_totp(user, totp_code):
     totp = pyotp.TOTP(user.totp_secret)
     return totp.verify(totp_code)
+
+def simple_encrypt(plain_text):
+    #return cipher_suite.encrypt(plain_text.encode('utf-8')).decode('utf-8')
+    return plain_text
+
+def simple_decrypt(cipher_text):
+    #return cipher_suite.decrypt(cipher_text.encode('utf-8')).decode('utf-8')
+    return cipher_text
