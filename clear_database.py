@@ -1,4 +1,4 @@
-from yourpackage import app, db  # Importuj obiekt app i db z twojej aplikacji
+from yourpackage import app, db
 
 def clear_database():
     with app.app_context():

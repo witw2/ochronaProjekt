@@ -1,11 +1,11 @@
 #utils.py
+import os
+
 import pyotp
-from cryptography.fernet import Fernet
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
 import base64
-from cryptography.fernet import Fernet
 import hashlib
 
 def sign_content(content, user):
@@ -33,8 +33,10 @@ def verify_totp(user, totp_code):
 
 def simple_encrypt(plain_text):
     #return cipher_suite.encrypt(plain_text.encode('utf-8')).decode('utf-8')
-    return plain_text
+    coded=encrypt_content_with_password(plain_text, os.getenv('ENCRYPTION_PASSWORD'))
+    return coded
 
 def simple_decrypt(cipher_text):
     #return cipher_suite.decrypt(cipher_text.encode('utf-8')).decode('utf-8')
-    return cipher_text
+    decoded=decrypt_content_with_password(cipher_text, os.getenv('ENCRYPTION_PASSWORD'))
+    return decoded

@@ -8,6 +8,8 @@ services:
     environment:
       - FLASK_APP=yourpackage
       - FLASK_ENV=production
+    env_file:
+      - .env
     expose:
       - "5000"
     networks:
